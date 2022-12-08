@@ -166,7 +166,7 @@ impl Curve for SquareRoot {
     fn supply(&self, reserve: Uint128) -> Uint128 {
         // f(x) = (1.5 * reserve / self.slope) ^ (2/3)
         let base = self.normalize.from_reserve(reserve) * Decimal::new(15, 1) / self.slope;
-        let squared = base * base;
+        let squared = squared_pow(base);
         let supply = cube_root(squared);
         self.normalize.clone().to_supply(supply)
     }
@@ -215,7 +215,7 @@ impl Curve for Squared {
 fn square_root(square: Decimal) -> Decimal {
     // must be even
     // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 12;
+    const EXTRA_DIGITS: u32 = 8;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply by 10^18 and turn to u128
@@ -224,14 +224,14 @@ fn square_root(square: Decimal) -> Decimal {
 
     // take square root, and build a decimal again
     let root = extended.integer_sqrt();
-    decimal(root, EXTRA_DIGITS / 2)
+    decimal(root, EXTRA_DIGITS)
 }
 
 // we multiply by 10^9, turn to int, take cube root, then divide by 10^3 as we convert back to decimal
 fn cube_root(cube: Decimal) -> Decimal {
     // must be multiple of 3
     // TODO: what is a good value?
-    const EXTRA_DIGITS: u32 = 9;
+    const EXTRA_DIGITS: u32 = 8;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply out and turn to u128
@@ -240,7 +240,7 @@ fn cube_root(cube: Decimal) -> Decimal {
 
     // take cube root, and build a decimal again
     let root = extended.integer_cbrt();
-    decimal(root, EXTRA_DIGITS / 3)
+    decimal(root, EXTRA_DIGITS)
 }
 
 // we multiply by 10^8, turn to int,  square it, then divide by 10^8 as we convert back to decimal
@@ -259,7 +259,7 @@ fn squared_pow(square: Decimal) -> Decimal {
     decimal(root, EXTRA_DIGITS)
 }
 
-// we multiply by 10^8, turn to int,  square it, then divide by 10^8 as we convert back to decimal
+// we multiply by 10^8, turn to int,  cube it, then divide by 10^8 as we convert back to decimal
 fn cubed_pow(square: Decimal) -> Decimal {
     // must be even
     // TODO: this can overflow easily at 18... what is a good value?
