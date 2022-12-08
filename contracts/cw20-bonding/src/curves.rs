@@ -189,14 +189,14 @@ impl Curve for Squared {
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = self.slope * supply^2
         let normalized = self.normalize.from_supply(supply);
-        let raised = normalized * normalized;
+        let raised = squared_pow(normalized);
         decimal_to_std(self.slope * raised)
     }
 
     fn reserve(&self, supply: Uint128) -> Uint128 {
         // F(x) = (self.slope * supply^3) / 3
         let normalized = self.normalize.from_supply(supply);
-        let raised = normalized * normalized * normalized;
+        let raised = cubed_pow(normalized);
         let reserve = (self.slope * raised) / Decimal::new(30, 1);
         self.normalize.clone().to_reserve(reserve)
     }
@@ -242,6 +242,39 @@ fn cube_root(cube: Decimal) -> Decimal {
     let root = extended.integer_cbrt();
     decimal(root, EXTRA_DIGITS / 3)
 }
+
+// we multiply by 10^8, turn to int,  square it, then divide by 10^8 as we convert back to decimal
+fn squared_pow(square: Decimal) -> Decimal {
+    // must be even
+    // TODO: this can overflow easily at 18... what is a good value?
+    const EXTRA_DIGITS: u32 = 8;
+    let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
+
+    // multiply by 10^8 and turn to u128
+    let extended = square * decimal(multiplier, 0);
+    let extended = extended.floor().to_u128().unwrap();
+
+    // square it (^2), and build a decimal again
+    let root = extended.saturating_pow(2);
+    decimal(root, EXTRA_DIGITS)
+}
+
+// we multiply by 10^8, turn to int,  square it, then divide by 10^8 as we convert back to decimal
+fn cubed_pow(square: Decimal) -> Decimal {
+    // must be even
+    // TODO: this can overflow easily at 18... what is a good value?
+    const EXTRA_DIGITS: u32 = 8;
+    let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
+
+    // multiply by 10^8 and turn to u128
+    let extended = square * decimal(multiplier, 0);
+    let extended = extended.floor().to_u128().unwrap();
+
+    // cube it (^3), and build a decimal again
+    let root = extended.saturating_pow(3);
+    decimal(root, EXTRA_DIGITS)
+}
+
 
 /// DecimalPlaces should be passed into curve constructors
 #[cw_serde]
