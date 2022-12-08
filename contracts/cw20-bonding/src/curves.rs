@@ -59,7 +59,8 @@ fn decimal_to_std(x: Decimal) -> StdDecimal {
     // StdDecimal::from_ratio(nominator, multiplier)
 }
 
-/// spot price is always a constant value
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 pub struct Constant {
     pub value: Decimal,
     pub normalize: DecimalPlaces,
@@ -71,7 +72,8 @@ impl Constant {
     }
 }
 
-impl Curve for Constant {
+// spot price is always a constant value
+impl Curve for Constant { 
     // we need to normalize value with the reserve decimal places
     // (eg 0.1 value would return 100_000 if reserve was uatom)
     fn spot_price(&self, _supply: Uint128) -> StdDecimal {
@@ -94,7 +96,7 @@ impl Curve for Constant {
     }
 }
 
-/// spot_price is slope * supply
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 pub struct Linear {
     pub slope: Decimal,
     pub normalize: DecimalPlaces,
@@ -106,6 +108,7 @@ impl Linear {
     }
 }
 
+// spot_price is slope * supply
 impl Curve for Linear {
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = supply * self.value
@@ -131,7 +134,7 @@ impl Curve for Linear {
     }
 }
 
-/// spot_price is slope * (supply)^0.5
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 pub struct SquareRoot {
     pub slope: Decimal,
     pub normalize: DecimalPlaces,
@@ -143,7 +146,8 @@ impl SquareRoot {
     }
 }
 
-impl Curve for SquareRoot {
+// spot_price is slope * (supply)^0.5
+impl Curve for SquareRoot { 
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = self.slope * supply^0.5
         let square = self.normalize.from_supply(supply);
@@ -168,6 +172,45 @@ impl Curve for SquareRoot {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+pub struct Squared {
+    pub slope: Decimal,
+    pub normalize: DecimalPlaces,
+}
+
+impl Squared {
+    pub fn new(slope: Decimal, normalize: DecimalPlaces) -> Self {
+        Self { slope, normalize }
+    }
+}
+
+//Squared Curve: y=k*x^2
+impl Curve for Squared {
+    fn spot_price(&self, supply: Uint128) -> StdDecimal {
+        // f(x) = self.slope * supply^2
+        let normalized = self.normalize.from_supply(supply);
+        let raised = normalized * normalized;
+        decimal_to_std(self.slope * raised)
+    }
+
+    fn reserve(&self, supply: Uint128) -> Uint128 {
+        // F(x) = (self.slope * supply^3) / 3
+        let normalized = self.normalize.from_supply(supply);
+        let raised = normalized * normalized * normalized;
+        let reserve = (self.slope * raised) / Decimal::new(30, 1);
+        self.normalize.clone().to_reserve(reserve)
+    }
+
+    fn supply(&self, reserve: Uint128) -> Uint128 {
+        // F^-1(x) = (3.0 * reserve / self.slope) ^ (1/3)
+        let base = self.normalize.from_reserve(reserve) * Decimal::new(30, 1) / self.slope;
+        let supply = cube_root(base);
+        self.normalize.clone().to_supply(supply)
+    }
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 // we multiply by 10^18, turn to int, take square root, then divide by 10^9 as we convert back to decimal
 fn square_root(square: Decimal) -> Decimal {
     // must be even
