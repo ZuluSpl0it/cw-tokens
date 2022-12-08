@@ -40,6 +40,8 @@ pub enum CurveType {
     Linear { slope: Uint128, scale: u32 },
     /// SquareRoot returns `slope * 10^-scale * supply^0.5` as spot price
     SquareRoot { slope: Uint128, scale: u32 },
+    /// Squared returns `slope * 10^-scale * supply^2` as spot price
+    Squared { slope: Uint128, scale: u32 },
 }
 
 impl CurveType {
@@ -60,6 +62,12 @@ impl CurveType {
             CurveType::SquareRoot { slope, scale } => {
                 let calc = move |places| -> Box<dyn Curve> {
                     Box::new(SquareRoot::new(decimal(slope, scale), places))
+                };
+                Box::new(calc)
+            }
+            CurveType::Squared { slope, scale } => {
+                let calc = move |places| -> Box<dyn Curve> {
+                    Box::new(Squared::new(decimal(slope, scale), places))
                 };
                 Box::new(calc)
             }
