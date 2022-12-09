@@ -215,7 +215,7 @@ impl Curve for Squared {
 fn square_root(square: Decimal) -> Decimal {
     // must be even
     // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 8;
+    const EXTRA_DIGITS: u32 = 6;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply by 10^18 and turn to u128
@@ -231,7 +231,7 @@ fn square_root(square: Decimal) -> Decimal {
 fn cube_root(cube: Decimal) -> Decimal {
     // must be multiple of 3
     // TODO: what is a good value?
-    const EXTRA_DIGITS: u32 = 8;
+    const EXTRA_DIGITS: u32 = 6;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply out and turn to u128
@@ -247,7 +247,7 @@ fn cube_root(cube: Decimal) -> Decimal {
 fn squared_pow(square: Decimal) -> Decimal {
     // must be even
     // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 8;
+    const EXTRA_DIGITS: u32 = 6;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply by 10^8 and turn to u128
@@ -263,7 +263,7 @@ fn squared_pow(square: Decimal) -> Decimal {
 fn cubed_pow(square: Decimal) -> Decimal {
     // must be even
     // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 8;
+    const EXTRA_DIGITS: u32 = 6;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
     // multiply by 10^8 and turn to u128
@@ -294,25 +294,23 @@ impl DecimalPlaces {
     }
 
     pub fn to_reserve(self, reserve: Decimal) -> Uint128 {
-        let factor = decimal(10u128.pow(self.reserve), 0);
+        let factor = decimal(10u128.pow(6), 0);
         let out = reserve * factor;
-        // TODO: execute overflow better? Result?
         out.floor().to_u128().unwrap().into()
     }
 
     pub fn to_supply(self, supply: Decimal) -> Uint128 {
-        let factor = decimal(10u128.pow(self.supply), 0);
+        let factor = decimal(10u128.pow(6), 0);
         let out = supply * factor;
-        // TODO: execute overflow better? Result?
         out.floor().to_u128().unwrap().into()
     }
 
     pub fn from_supply(&self, supply: Uint128) -> Decimal {
-        decimal(supply, self.supply)
+        decimal(supply, 6)
     }
 
     pub fn from_reserve(&self, reserve: Uint128) -> Decimal {
-        decimal(reserve, self.reserve)
+        decimal(reserve, 6)
     }
 }
 
