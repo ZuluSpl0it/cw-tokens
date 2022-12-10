@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use crate::curves::{decimal, Constant, Curve, DecimalPlaces, Linear, SquareRoot};
+use crate::curves::{decimal, Constant, Curve, DecimalPlaces, Linear, SquareRoot, Squared};
 use cosmwasm_std::{Binary, Decimal, Uint128};
 use cw20::AllowanceResponse as Cw20AllowanceResponse;
 use cw20::BalanceResponse as Cw20BalanceResponse;
