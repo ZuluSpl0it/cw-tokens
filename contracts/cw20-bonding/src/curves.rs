@@ -59,8 +59,7 @@ fn decimal_to_std(x: Decimal) -> StdDecimal {
     // StdDecimal::from_ratio(nominator, multiplier)
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+/// spot price is always a constant value
 pub struct Constant {
     pub value: Decimal,
     pub normalize: DecimalPlaces,
@@ -72,8 +71,7 @@ impl Constant {
     }
 }
 
-// spot price is always a constant value
-impl Curve for Constant { 
+impl Curve for Constant {
     // we need to normalize value with the reserve decimal places
     // (eg 0.1 value would return 100_000 if reserve was uatom)
     fn spot_price(&self, _supply: Uint128) -> StdDecimal {
@@ -96,7 +94,7 @@ impl Curve for Constant {
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+/// spot_price is slope * supply
 pub struct Linear {
     pub slope: Decimal,
     pub normalize: DecimalPlaces,
@@ -108,7 +106,6 @@ impl Linear {
     }
 }
 
-// spot_price is slope * supply
 impl Curve for Linear {
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = supply * self.value
@@ -134,7 +131,7 @@ impl Curve for Linear {
     }
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+/// spot_price is slope * (supply)^0.5
 pub struct SquareRoot {
     pub slope: Decimal,
     pub normalize: DecimalPlaces,
@@ -146,8 +143,7 @@ impl SquareRoot {
     }
 }
 
-// spot_price is slope * (supply)^0.5
-impl Curve for SquareRoot { 
+impl Curve for SquareRoot {
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = self.slope * supply^0.5
         let square = self.normalize.from_supply(supply);
@@ -166,7 +162,7 @@ impl Curve for SquareRoot {
     fn supply(&self, reserve: Uint128) -> Uint128 {
         // f(x) = (1.5 * reserve / self.slope) ^ (2/3)
         let base = self.normalize.from_reserve(reserve) * Decimal::new(15, 1) / self.slope;
-        let squared = squared_pow(base);
+        let squared = base * base;
         let supply = cube_root(squared);
         self.normalize.clone().to_supply(supply)
     }
@@ -189,14 +185,14 @@ impl Curve for Squared {
     fn spot_price(&self, supply: Uint128) -> StdDecimal {
         // f(x) = self.slope * supply^2
         let normalized = self.normalize.from_supply(supply);
-        let raised = squared_pow(normalized);
+        let raised = normalized * normalized;
         decimal_to_std(self.slope * raised)
     }
 
     fn reserve(&self, supply: Uint128) -> Uint128 {
         // F(x) = (self.slope * supply^3) / 3
         let normalized = self.normalize.from_supply(supply);
-        let raised = cubed_pow(normalized);
+        let raised = normalized * normalized * normalized;
         let reserve = (self.slope * raised) / Decimal::new(30, 1);
         self.normalize.clone().to_reserve(reserve)
     }
@@ -208,12 +204,12 @@ impl Curve for Squared {
         self.normalize.clone().to_supply(supply)
     }
 }
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////
-// we multiply by 10^12, turn to int, take square root, then divide by 10^6 as we convert back to decimal
+
+// we multiply by 10^18, turn to int, take square root, then divide by 10^9 as we convert back to decimal
 fn square_root(square: Decimal) -> Decimal {
     // must be even
+    // TODO: this can overflow easily at 18... what is a good value?
     const EXTRA_DIGITS: u32 = 12;
     let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
 
@@ -223,7 +219,7 @@ fn square_root(square: Decimal) -> Decimal {
 
     // take square root, and build a decimal again
     let root = extended.integer_sqrt();
-    decimal(root, (EXTRA_DIGITS/2))
+    decimal(root, EXTRA_DIGITS / 2)
 }
 
 // we multiply by 10^9, turn to int, take cube root, then divide by 10^3 as we convert back to decimal
@@ -239,41 +235,8 @@ fn cube_root(cube: Decimal) -> Decimal {
 
     // take cube root, and build a decimal again
     let root = extended.integer_cbrt();
-    decimal(root, (EXTRA_DIGITS/3))
+    decimal(root, EXTRA_DIGITS / 3)
 }
-
-// we multiply by 10^12, turn to int,  square it, then divide by 10^6 as we convert back to decimal
-fn squared_pow(square: Decimal) -> Decimal {
-    // must be even
-    // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 12;
-    let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
-
-    // multiply by 10^6 and turn to u128
-    let extended = square * decimal(multiplier, 0);
-    let extended = extended.floor().to_u128().unwrap();
-
-    // square it (^2), and build a decimal again
-    let root = extended.saturating_pow(2);
-    decimal(root, (EXTRA_DIGITS/2))
-}
-
-// we multiply by 10^9, turn to int,  cube it, then divide by 10^3 as we convert back to decimal
-fn cubed_pow(square: Decimal) -> Decimal {
-    // must be multiple of 3
-    // TODO: this can overflow easily at 18... what is a good value?
-    const EXTRA_DIGITS: u32 = 9;
-    let multiplier = 10u128.saturating_pow(EXTRA_DIGITS);
-
-    // multiply by 10^8 and turn to u128
-    let extended = square * decimal(multiplier, 0);
-    let extended = extended.floor().to_u128().unwrap();
-
-    // cube it (^3), and build a decimal again
-    let root = extended.saturating_pow(3);
-    decimal(root, (EXTRA_DIGITS/3))
-}
-
 
 /// DecimalPlaces should be passed into curve constructors
 #[cw_serde]
@@ -293,23 +256,25 @@ impl DecimalPlaces {
     }
 
     pub fn to_reserve(self, reserve: Decimal) -> Uint128 {
-        let factor = decimal(10u128.pow(6), 0);
+        let factor = decimal(10u128.pow(self.reserve), 0);
         let out = reserve * factor;
+        // TODO: execute overflow better? Result?
         out.floor().to_u128().unwrap().into()
     }
 
     pub fn to_supply(self, supply: Decimal) -> Uint128 {
-        let factor = decimal(10u128.pow(6), 0);
+        let factor = decimal(10u128.pow(self.supply), 0);
         let out = supply * factor;
+        // TODO: execute overflow better? Result?
         out.floor().to_u128().unwrap().into()
     }
 
     pub fn from_supply(&self, supply: Uint128) -> Decimal {
-        decimal(supply, 6)
+        decimal(supply, self.supply)
     }
 
     pub fn from_reserve(&self, reserve: Uint128) -> Decimal {
-        decimal(reserve, 6)
+        decimal(reserve, self.reserve)
     }
 }
 
@@ -424,6 +389,51 @@ mod tests {
         let supply = curve.supply(Uint128::new(84058));
         assert_eq!(Uint128::new(235_000_000), supply);
     }
+
+    #[test]
+    fn squared_curve() {
+        // supply is utree (decimals 6) reserve is chf (decimals 6)
+        let normalize = DecimalPlaces::new(6, 6);
+        // slope is 0.000003 (eg hits 0.000003 after 1 chf, 3.5 after 100chf)
+        let curve = Squared::new(decimal(3u128, 6), normalize);
+
+        // do some sanity checks....
+        // spot price is 0.000003 with 1 TREE supply
+        assert_eq!(
+            StdDecimal::percent(3),
+            curve.spot_price(Uint128::new(100_000_000))
+        );
+        // spot price is 0.03 with 100 TREE supply
+        assert_eq!(
+            StdDecimal::percent(300),
+            curve.spot_price(Uint128::new(1_000_000_000))
+        );
+        // spot price should be 23.478713763747788 with 4500 TREE supply (test rounding and reporting here)
+        // rounds off around 8-9 sig figs (note diff for last points)
+        assert_eq!(
+            StdDecimal::from_ratio(6075000000u128, 100_000_000u128),
+            curve.spot_price(Uint128::new(4_500_000_000))
+        );
+
+        // if we have 100 TREE, we should have 1 CHF
+        let reserve = curve.reserve(Uint128::new(100_000_000));
+        assert_eq!(Uint128::new(1_000_000), reserve);
+        // if we have 1500 TREE, we should have 3375 CHF
+        let reserve = curve.reserve(Uint128::new(1_500_000_000));
+        assert_eq!(Uint128::new(3_375_000_000), reserve);
+        // test rounding
+        // if we have 1501 TREE, we should have 3381.754501 CHF
+        let reserve = curve.reserve(Uint128::new(1_501_000_000));
+        assert_eq!(Uint128::new(3_381_754_501), reserve); // round down
+
+        // // if we have 5 CHF, we should have 170.997594 TREE (round down)
+        let supply = curve.supply(Uint128::new(5_000_000));
+        assert_eq!(Uint128::new(170_997_000), supply);
+        // if we have 1,583,697,854 CHF, we should have 116562.1214 TREE (round down)
+        let supply = curve.supply(Uint128::new(1_583_697_854_000_000));
+        assert_eq!(Uint128::new(116_562_121_000), supply);
+    }
+
 
     // Idea: generic test that curve.supply(curve.reserve(supply)) == supply (or within some small rounding margin)
 }
